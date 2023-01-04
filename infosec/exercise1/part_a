@@ -1,0 +1,4 @@
+ssh cloud-user@infosec1.vikaa.fi -p 49165 (login: cloud-user eDvaKTjU)
+ssh-keygen -t ed25519
+ssh-copy-id cloud-user@infosec1.vikaa.fi -p 49165 -i ~/.ssh/id_ed25519.pub
+ssh cloud-user@infosec1.vikaa.fi -p 49165

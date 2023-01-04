@@ -1,0 +1,18 @@
+ssh cloud-user@infosec1.vikaa.fi -p 49165
+
+sudo addgroup project2022
+sudo useradd alice -m -g project2022
+sudo useradd bob -g project2022
+sudo useradd carol
+
+sudo mv ~/project /home/alice/
+
+sudo chown alice:project2022 -R /home/alice/project
+
+sudo chmod 664 -R /home/alice/project/
+sudo chmod +X /home/alice/project/
+sudo chmod 660 -R /home/alice/project/code
+sudo chmod ug+X /home/alice/project/code
+sudo chmod +111 /home/alice/project/poc
+sudo chmod 600 -R /home/alice/project/confidential/
+sudo chmod u+X /home/alice/project/confidential
