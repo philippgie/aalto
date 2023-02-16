@@ -1,0 +1,12 @@
+1.
+  a. Processes would not be isolated anymore. This can by abused in different ways. For example, a process can read confidential content from the memory of another process or write data into a process to acheive e.g. privilege escalation.
+  b. Using a larger page size could result in faster table lookups and reduce the memory size used for the table. On the other hand, this increases latency if a page has been moved to the disk and needs to be loaded again and introduces an increased overhead if we only need a part of a page.
+  c. i. R-X; the code clearly needs to be executable. Furthermore, we argue that it should be readable such that it is possible to check the code for malware and generally be able to investigate the purpose of the program. This is also especially true for interpreted code. Making it writeable increases the attack surface as exploititation becomes easier. There may be rare cases where writeable code makes sense, e.g. for obfuscated code / polymorphic code to protect intellectual property but this should generally be avoided. 
+     ii. R-X; same reasons as above. Especially, the code should not be writeable since it is shared and generally cop-on-write applies.
+     iii. RW-; In most cases application data should not be executed but we should be able to inspect it and modify it.
+
+2.
+  a. If we want to run two containers using different OSs at least one of them does not share the kernel with the host OS, hence,  we would have to create a virtual machine.
+  b.  i. In general the hypervisor passes the call thorugh to the hardware. In special cases like privileged instructions the instruciton is trapped and emulated by the hypervisor. On the other hand, for a type-2 hypervisor all instructions are first interpreted by the host os.
+     ii. In this case the application interpreter, e.g., JVM
+     iii. Here, the host OS interprets the binary code. There may be edge cases like running a linux container on windows, where Docker creates a linux VM by defualt which serves as the host os for the linux container. In that case the code would first be interpreted by the hypervisor. 
