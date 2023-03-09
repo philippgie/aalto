@@ -191,3 +191,4 @@ seminar/k-miner/build/lib/libLLVMKminer.a
 seminar/k-miner/build/bin/kminer
 seminar/replica/vmlinux_v3.19.bc
 seminar/syzkaller/.git/objects/pack/pack-5592561c977480ae8c3bd7083d22dce7a381ce6e.pack
+LibAFL
