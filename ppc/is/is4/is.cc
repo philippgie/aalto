@@ -88,57 +88,59 @@ Result segment(int ny, int nx, const float *data) {
   }
   printTime();
 
-  double min_error = std::numeric_limits<double>::infinity();
+  // double max_error = std::numeric_limits<double>::infinity();
+  double max_error = 0.0;
 #pragma omp parallel
   {
-    double min_thread_error = std::numeric_limits<double>::infinity();
+    // double max_thread_error = std::numeric_limits<double>::infinity();
+    double max_thread_error = 0.0;
     Result thread_result{0, 0, 0, 0, {0, 0, 0}, {0, 0, 0}};
 #pragma omp for
     for (int y0 = 0; y0 < ny; y0++) {
       for (int y1 = y0 + 1; y1 <= ny; y1++) {
         for (int x0 = 0; x0 < nx; x0++) {
           for (int x1 = x0 + 1; x1 <= nx; x1++) {
+            double4_t inner_error;
+            double4_t outer_error;
             double4_t inner_avg;
             double4_t outer_avg;
             if (x0 == 0 && y0 == 0) {
-              inner_avg = sums[(x1 - 1) + nx * (y1 - 1)];
+              inner_error = sums[(x1 - 1) + nx * (y1 - 1)];
             } else if (y0 == 0) {
-              inner_avg = (sums[(x1 - 1) + nx * (y1 - 1)] -
-                           sums[(x0 - 1) + nx * (y1 - 1)]);
+              inner_error = (sums[(x1 - 1) + nx * (y1 - 1)] -
+                             sums[(x0 - 1) + nx * (y1 - 1)]);
             } else if (x0 == 0) {
-              inner_avg = (sums[(x1 - 1) + nx * (y1 - 1)] -
-                           sums[(x1 - 1) + nx * (y0 - 1)]);
+              inner_error = (sums[(x1 - 1) + nx * (y1 - 1)] -
+                             sums[(x1 - 1) + nx * (y0 - 1)]);
             } else {
-              inner_avg = (sums[(x0 - 1) + nx * (y0 - 1)] -
-                           sums[(x1 - 1) + nx * (y0 - 1)] -
-                           sums[(x0 - 1) + nx * (y1 - 1)] +
-                           sums[(x1 - 1) + nx * (y1 - 1)]);
+              inner_error = (sums[(x0 - 1) + nx * (y0 - 1)] -
+                             sums[(x1 - 1) + nx * (y0 - 1)] -
+                             sums[(x0 - 1) + nx * (y1 - 1)] +
+                             sums[(x1 - 1) + nx * (y1 - 1)]);
             }
-            outer_avg = (sums[(nx - 1) + nx * (ny - 1)] - inner_avg) /
-                        (nx * ny - (x1 - x0) * (y1 - y0));
-            inner_avg /= (x1 - x0) * (y1 - y0);
-            inner_avg *= inner_avg;
-            outer_avg *= outer_avg;
-            double4_t inner_error = d4zero;
-            double4_t outer_error = d4zero;
-            for (int x = 0; x < nx; x++) {
-              for (int y = 0; y < ny; y++) {
-                if ((x0 <= x) && (x < x1) && (y0 <= y) && (y < y1)) {
-                  double4_t t = data_4d[x + nx * y] - inner_avg;
-                  inner_error += t * t;
-                } else {
-                  double4_t t = data_4d[x + nx * y] - outer_avg;
-                  outer_error += t * t;
-                }
-              }
-            }
-            double seg_error =
-                reduce_double4(inner_error) + reduce_double4(outer_error);
+            outer_error = (sums[(nx - 1) + nx * (ny - 1)] - inner_error);
+            // for (int c = 0; c < 3; c++) {
+            //   std::cout << "inner error: " << inner_error[c] << std::endl;
+            //   std::cout << "outer error: " << outer_error[c] << std::endl;
+            // }
+            inner_avg = inner_error / ((x1 - x0) * (y1 - y0));
+            outer_avg = outer_error / (nx * ny - (x1 - x0) * (y1 - y0));
+            // for (int c = 0; c < 3; c++) {
+            //   std::cout << "inner avg: " << inner_avg[c] << std::endl;
+            //   std::cout << "outer avg: " << outer_avg[c] << std::endl;
+            // }
+            inner_error *= inner_avg;
+            outer_error *= outer_avg;
 
-            // std::cout << "Minimum error: " << min_error << std::endl;
-            // std::cout << "Segment error: " << seg_error << std::endl;
-            if (seg_error < min_thread_error) {
-              min_thread_error = seg_error;
+            double seg_error = reduce_double4(inner_error + outer_error);
+
+            // std::cout << "Minimum error: " << max_error << std::endl;
+            // std::cout << "x1: " << x1 << "\t x0: " << x0 << std::endl;
+            // std::cout << "y1: " << y1 << "\t y0: " << y0 << std::endl;
+            // std::cout << "Segment error: " << seg_error << std::endl
+            //          << std::endl;
+            if (seg_error > max_thread_error) {
+              max_thread_error = seg_error;
               thread_result.y1 = y1;
               thread_result.x0 = x0;
               thread_result.x1 = x1;
@@ -154,8 +156,8 @@ Result segment(int ny, int nx, const float *data) {
       }
     }
 #pragma omp critical
-    if (min_thread_error < min_error) {
-      min_error = min_thread_error;
+    if (max_thread_error > max_error) {
+      max_error = max_thread_error;
       result.x0 = thread_result.x0;
       result.x1 = thread_result.x1;
       result.y0 = thread_result.y0;
