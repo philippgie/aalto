@@ -1,3 +1,5 @@
+#include <omp.h>
+
 #include <chrono>
 #include <iostream>
 #include <limits>
@@ -39,13 +41,7 @@ static double4_t *double4_alloc(std::size_t n) {
   return (double4_t *)tmp;
 }
 
-inline double reduce_double4(double4_t d) {
-  double aggr = 0.0;
-  for (int i = 0; i < 4; i++) {
-    aggr += d[i];
-  }
-  return aggr;
-}
+inline double reduce_double4(double4_t d) { return d[0] + d[1] + d[2]; }
 
 // static inline int color(int y, int x, int c, int nx, int ny,
 //                         const float* data) {
@@ -67,7 +63,7 @@ Result segment(int ny, int nx, const float *data) {
   double4_t *sums = double4_alloc(nx * ny);
   double4_t *data_4d = double4_alloc(nx * ny);
   // double* inner = new double(3 * nx * ny);
-  // #pragma omp parallel for
+#pragma omp parallel for
   for (int y = 0; y < ny; y++) {
     for (int x = 0; x < nx; x++) {
       for (int c = 0; c < 3; c++) {
@@ -81,29 +77,56 @@ Result segment(int ny, int nx, const float *data) {
     double4_t accumulator = d4zero;
     for (int x = 0; x < nx; x++) {
       accumulator += data_4d[x + nx * y];
-      sums[x + nx * y] =
+      sums[(x) + nx * (y)] =
           accumulator + (y > 0 ? sums[x + nx * (y - 1)] : d4zero);
       // std::cout << "Sum: " << sums[c + 3 * x + 3 * nx * y] << std::endl;
     }
   }
-  printTime();
+  // printTime();
 
   // double max_error = std::numeric_limits<double>::infinity();
   double max_error = 0.0;
+  double4_t total = sums[(nx - 1) + nx * (ny - 1)];
 #pragma omp parallel
   {
     // double max_thread_error = std::numeric_limits<double>::infinity();
     double max_thread_error = 0.0;
     Result thread_result{0, 0, 0, 0, {0, 0, 0}, {0, 0, 0}};
-#pragma omp for
+#pragma omp for schedule(static, 1) nowait
+    //  for (int width = 1; width <= nx; width++) {
+    //    for (int height = 1; height <= ny; height++) {
+    //      int inner_size = width * height;
+    //      int outer_size = nx * ny - inner_size;
+    //      for (int y0 = 0; y0 <= ny - height; y0++) {
+    //        int y1 = y0 + height;
+    //        for (int x0 = 0; x0 <= nx - width; x0++) {
+    //          int x1 = x0 + width;
     for (int y0 = 0; y0 < ny; y0++) {
-      for (int y1 = y0 + 1; y1 <= ny; y1++) {
+      for (int height = 1; height <= ny - y0; height++) {
         for (int x0 = 0; x0 < nx; x0++) {
+          int inner_size = height;
+          int outer_size = nx * ny - inner_size;
+          // for (int width = 1; width <= nx - x0; width++) {
           for (int x1 = x0 + 1; x1 <= nx; x1++) {
+            // int x1 = x0 + width;
+            int y1 = y0 + height;
             double4_t inner_error;
             double4_t outer_error;
-            double4_t inner_avg;
-            double4_t outer_avg;
+            constexpr int PF = 20;
+            //__builtin_prefetch(&sums[(x0 - 1) + nx * (y0 - 1)] + PF);
+            __builtin_prefetch(&sums[(x1 - 1) + nx * (y0 - 1)] + PF);
+            //__builtin_prefetch(&sums[(x0 - 1) + nx * (y1 - 1)] + PF);
+            __builtin_prefetch(&sums[(x1 - 1) + nx * (y1 - 1)] + PF);
+            // if (omp_get_thread_num() == 0) {
+            //   // std::cout << x0 << "\t\t\t";
+            //   // std::cout << x1 << "\t\t\t";
+            //   // std::cout << y0 << "\t\t\t";
+            //   // std::cout << y1 << std::endl;
+            //   std::cout << (x0 - 1) + nx * (y0 - 1) << "\t\t\t";
+            //   std::cout << (x1 - 1) + nx * (y0 - 1) << "\t\t\t";
+            //   std::cout << (x0 - 1) + nx * (y1 - 1) << "\t\t\t";
+            //   std::cout << (x1 - 1) + nx * (y1 - 1) << std::endl;
+            // }
             if (x0 == 0 && y0 == 0) {
               inner_error = sums[(x1 - 1) + nx * (y1 - 1)];
             } else if (y0 == 0) {
@@ -113,22 +136,16 @@ Result segment(int ny, int nx, const float *data) {
               inner_error = (sums[(x1 - 1) + nx * (y1 - 1)] -
                              sums[(x1 - 1) + nx * (y0 - 1)]);
             } else {
+              // inner_error = (inner_square -
               inner_error = (sums[(x0 - 1) + nx * (y0 - 1)] -
                              sums[(x1 - 1) + nx * (y0 - 1)] -
                              sums[(x0 - 1) + nx * (y1 - 1)] +
                              sums[(x1 - 1) + nx * (y1 - 1)]);
             }
-            outer_error = (sums[(nx - 1) + nx * (ny - 1)] - inner_error);
-            // for (int c = 0; c < 3; c++) {
-            //   std::cout << "inner error: " << inner_error[c] << std::endl;
-            //   std::cout << "outer error: " << outer_error[c] << std::endl;
-            // }
-            inner_avg = inner_error / ((x1 - x0) * (y1 - y0));
-            outer_avg = outer_error / (nx * ny - (x1 - x0) * (y1 - y0));
-            // for (int c = 0; c < 3; c++) {
-            //   std::cout << "inner avg: " << inner_avg[c] << std::endl;
-            //   std::cout << "outer avg: " << outer_avg[c] << std::endl;
-            // }
+            outer_error = total - inner_error;
+
+            double4_t inner_avg = inner_error / inner_size;
+            double4_t outer_avg = outer_error / outer_size;
             inner_error *= inner_avg;
             outer_error *= outer_avg;
 
@@ -139,7 +156,7 @@ Result segment(int ny, int nx, const float *data) {
             // std::cout << "y1: " << y1 << "\t y0: " << y0 << std::endl;
             // std::cout << "Segment error: " << seg_error << std::endl
             //          << std::endl;
-            if (seg_error > max_thread_error) {
+            if (seg_error >= max_thread_error) {
               max_thread_error = seg_error;
               thread_result.y1 = y1;
               thread_result.x0 = x0;
@@ -150,7 +167,10 @@ Result segment(int ny, int nx, const float *data) {
                 thread_result.inner[c] = inner_avg[c];
                 thread_result.outer[c] = outer_avg[c];
               }
+              asm("#dummy");
             }
+            inner_size += height;
+            outer_size -= height;
           }
         }
       }
@@ -158,17 +178,35 @@ Result segment(int ny, int nx, const float *data) {
 #pragma omp critical
     if (max_thread_error > max_error) {
       max_error = max_thread_error;
-      result.x0 = thread_result.x0;
-      result.x1 = thread_result.x1;
-      result.y0 = thread_result.y0;
-      result.y1 = thread_result.y1;
-      for (int c = 0; c < 3; c++) {
-        result.inner[c] = thread_result.inner[c];
-        result.outer[c] = thread_result.outer[c];
-      }
+      result = thread_result;
     }
   }
-  printTime();
+  // printTime();
+
+  // double4_t inner_avg;
+  // if (result.x0 == 0 && result.y0 == 0) {
+  //   inner_avg = sums[(result.x1 - 1) + nx * (result.y1 - 1)];
+  // } else if (result.y0 == 0) {
+  //   inner_avg = (sums[(result.x1 - 1) + nx * (result.y1 - 1)] -
+  //                sums[(result.x0 - 1) + nx * (result.y1 - 1)]);
+  // } else if (result.x0 == 0) {
+  //   inner_avg = (sums[(result.x1 - 1) + nx * (result.y1 - 1)] -
+  //                sums[(result.x1 - 1) + nx * (result.y0 - 1)]);
+  // } else {
+  //   asm("#prefetch");
+  //   // inner_error = (sums[(x0 - 1) + nx * (y0 - 1)] -
+  //   inner_avg = (sums[(result.x0 - 1) + nx * (result.y0 - 1)] +
+  //                -sums[(result.x1 - 1) + nx * (result.y0 - 1)] -
+  //                sums[(result.x0 - 1) + nx * (result.y1 - 1)] +
+  //                sums[(result.x1 - 1) + nx * (result.y1 - 1)]);
+  // }
+  // double4_t outer_avg = total - inner_avg;
+  // inner_avg /= (result.x1 - result.x0) * (result.y1 - result.y0);
+  // outer_avg /= nx * ny - ((result.x1 - result.x0) * (result.y1 - result.y0));
+  // for (int c = 0; c < 3; c++) {
+  //   result.inner[c] = inner_avg[c];
+  //   result.outer[c] = outer_avg[c];
+  // }
 
   std::free(data_4d);
   std::free(sums);
