@@ -12,7 +12,6 @@ typedef unsigned long long data_t;
             << " is " << _variable << std::endl;
 
 constexpr int MIN_CHUNK_SIZE = 2 << 14;
-// constexpr int MAX_REC_LAYER = 6;
 
 static inline int find_index(data_t* arr, int n, data_t K) {
   for (int i = 0; i < n; i++) {
@@ -40,12 +39,7 @@ static inline int find_index(data_t* arr, int n, data_t K) {
   // return end + 1;
 }
 
-void merge(data_t* A, data_t* B, int size_A, int size_B, data_t* tmp,
-           int layer) {
-  if (layer > 1 + (int)std::log2(omp_get_max_threads())) {
-    std::merge(A, A + size_A, B, B + size_B, tmp);
-    return;
-  }
+void merge(data_t* A, data_t* B, int size_A, int size_B, data_t* tmp) {
   int m = size_A;
   int n = size_B;
   if (m < MIN_CHUNK_SIZE && n < MIN_CHUNK_SIZE) {
@@ -81,17 +75,17 @@ void merge(data_t* A, data_t* B, int size_A, int size_B, data_t* tmp,
 #pragma omp taskgroup
   {
 #pragma omp task shared(A, B, tmp)
-    { merge(A, B, r, s, tmp, layer + 1); }
+    { merge(A, B, r, s, tmp); }
 
 #pragma omp task shared(A, B, tmp)
-    { merge(A + r + 1, B + s, m - r - 1, n - s, tmp + t + 1, layer + 1); }
+    { merge(A + r + 1, B + s, m - r - 1, n - s, tmp + t + 1); }
 
 #pragma omp taskyield
   }
 }
 
-void mergesort(data_t* v, int n, data_t* tmp, int layer) {
-  if (layer > 1 + (int)std::log2(omp_get_max_threads())) {
+void mergesort(data_t* v, int n, data_t* tmp) {
+  if (n < MIN_CHUNK_SIZE) {
     std::sort(v, v + n);
     return;
   }
@@ -100,14 +94,14 @@ void mergesort(data_t* v, int n, data_t* tmp, int layer) {
 #pragma omp taskgroup
   {
 #pragma omp task shared(v, tmp)
-    mergesort(v, mid, tmp, layer + 1);
+    mergesort(v, mid, tmp);
 
 #pragma omp task shared(v, tmp)
-    mergesort(v + mid, n - mid, tmp + mid, layer + 1);
+    mergesort(v + mid, n - mid, tmp + mid);
 
 #pragma omp taskyield
   }
-  merge(v, v + mid, mid, n - mid, tmp, layer);
+  merge(v, v + mid, mid, n - mid, tmp);
   // std::merge(v, v + mid, v + mid, v + n, tmp);
   std::copy(tmp, tmp + n, v);
 }
@@ -121,7 +115,7 @@ void psort(int n, data_t* data) {
 #pragma omp parallel
   {
 #pragma omp single
-    mergesort(data, n, tmp, 0);
+    mergesort(data, n, tmp);
   }
 
   delete[] tmp;
