@@ -1,11 +1,22 @@
 #!/usr/bin/python3
-import sys,os
-import time
+
 import math
 
+from flask import Flask 
+from flask import request
 
-def integrate_numerically(lower: int, upper: int) -> int:
+
+app = Flask(__name__)
+
+@app.route("/ni", methods=['GET'])
+def integrate_numerically() -> int:
+    lower = request.args.get('lower', None)
+    upper = request.args.get('upper', None)
+    if(not lower or not upper):
+        return "Missing arguments lower and/or upper. Please pass parameters like so:<br/><br/> <i>/ni?lower=0&upper=3.1459</i>"
     integral =  []
+    lower = float(lower)
+    upper = float(upper)
     for i, n in enumerate((10, 100, 1000, 10000, 100000, 1000000)):
         dx = (upper-lower)/n 
 
@@ -17,8 +28,3 @@ def integrate_numerically(lower: int, upper: int) -> int:
             acc += dI
         integral.append(acc)
     return integral
-
-if __name__ == '__main__':
-    i = integrate_numerically(0, 3.14159)
-    print(i)
-
