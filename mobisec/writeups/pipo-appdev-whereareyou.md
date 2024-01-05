@@ -2,7 +2,7 @@
 
 ## Description of the problem
 
-The reachingout challenge requires to develop an app that implements a service that returns the current location via broadcast intent.
+The whereareyou challenge requires to develop an app that implements a service that returns the current location via broadcast intent.
 
 ## Solution
 

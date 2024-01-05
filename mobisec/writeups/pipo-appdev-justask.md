@@ -1,39 +1,23 @@
-# Solution
-
-> RENAME the file to: username-challengecategory-challengeename.md
-> E.g., bobby-appdev-helloworld.md
-> E.g., bobby-reversing-babyrev.md
-> E.g., bobby-exploitation-frontdoor.md
-
-> Never used markdown?
-> See: https://guides.github.com/features/mastering-markdown/
-
-> Please, remove all lines starting with > before submitting
-
-
 ## Description of the problem
 
-> Here describe the problems related to the challenge.
 
-The helloworld challenge requires to develop an app that prints a specific
-string with a specific verbosity and tag using Android's Logging API.
+The justask challenge requires to develop an app that requests four activities, each replying with a port of the final flag.
 
 ## Solution
 
-> Here describe how you solved the challenge
-> NOTE If you partially solved the challenge describe what you did anyway
+I've solved the challenge by developing an app doing four requests. The different intents to be recevied are `com.mobisec.justask.PartOne`, `com.mobisec.justask.PartTwo`, `com.mobisec.justask.PartThree`, `com.mobisec.justask.PartFour`. See here for an example how to setup the Activity to be launcehd for the first part
 
-I've solved the challenge by developing an app doing X and Y. My app uses
-permissions PX because of FOO. I'm also using the BAR API to do BAZ.
+```
+
+    val oneIntent = Intent()
+    oneIntent.component = ComponentName("com.mobisec.justask", "com.mobisec.justask.PartOne")
+    startActivityForResult(oneIntent, 1);
+
+```
+
+To obtain the intent, for the second and fourth part we need to explicitly define the action as they have an intent-filter.
+Interstingly, the three parts are easily parsed. The intents return a bundle, where I iterate over the elements with thhe `keySet` function. However, the fourth part ins encapsulated in multiple levels of bundles. I wrote a recursive function to extract the flag.
 
 
 ## Optional Feedback
 
-> OPTIONALLY provide feedback
-> NOTE be polite, thanks
-
-I really liked this challenge because of FOO and BAR.
-
-I think you can improve the challenge by doing X and Z.
-
-This challenge sucks  because of FOO and BAR.
